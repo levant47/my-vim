@@ -1,0 +1,67 @@
+﻿General:
+[/] arrow keys navigation
+[ ] status line
+[ ] vertical scrolling
+[ ] horizontal scrolling
+[ ] highlighting whitespace
+
+Command mode:
+[ ] close program with :q
+[ ] save file with :w
+
+Normal mode:   
+[/] JKHL navigation
+[/] Enter navigation
+[/] backspace navigation
+[ ] home navigation
+[ ] end navigation
+[ ] page up
+[ ] page down navigation
+[ ] paste from system clipboard with p
+[ ] copy to system clipboard with y
+[/] zero, dollar sign navigation
+[/] entering insert mode with i
+[ ] entering insert mode with I
+[/] entering insert mode with a
+[/] entering insert mode with A
+[ ] entering insert mode with o
+[ ] entering insert mode with O
+[ ] entering insert mode with s
+[ ] entering insert mode with S
+[/] deleting with x
+[ ] deleting with delete
+[/] line delete with d-d
+[ ] delete rest of line with D
+[ ] navigation with w
+[ ] navigating with W
+[ ] navigating with e
+[ ] navigating with E
+[ ] navigating with b
+[ ] navigating with B
+[ ] undo with u
+[ ] redo with ctrl-r
+[ ] repeat last command with dot
+[ ] execute command multiple times with digit keys
+[ ] navigation to top with g-g
+[ ] to bottom with G
+[ ] navigation with t
+[ ] navigation with T
+[ ] navigation with f
+[ ] navigation with F
+[ ] repeat last navigation with semicolon
+[ ] repeat last navigation in reverse with comma
+[ ] navigation with {, }
+[ ] macros with q
+[ ] support for other keyboard layouts
+[ ] join lines with J
+[ ] tilde to change case
+[ ] dollar sign + move up (cursor is always at the end of line, no matter the length)
+
+Insert mode:
+[/] leaving insert mode
+
+Visual mode:
+
+Visual line mode:
+
+Replace mode
