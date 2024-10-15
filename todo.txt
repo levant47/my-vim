@@ -55,6 +55,8 @@ Normal mode:
 [ ] support for other keyboard layouts
 [ ] join lines with J
 [ ] tilde to change case
+[ ] space in normal mode for navigation
+[ ] percent to navigate to matching parenthesis/bracket/brace
 [ ] dollar sign + move up (cursor is always at the end of line, no matter the length)
 
 Insert mode:

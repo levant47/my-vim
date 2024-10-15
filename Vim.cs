@@ -1,4 +1,6 @@
-﻿public class Vim
+﻿// old version
+/*
+public class Vim
 {
     private enum Mode
     {
@@ -38,13 +40,15 @@
     public List<string> Lines;
     private Mode _mode = Mode.Normal;
     private int _lastPressedKey;
+    private KeyboardKey _lastExecutedKey;
+    private bool _lastExecutedShift;
     private Font _font;
 
     private List<HistoryEntry> _history = [];
     private HistoryEntry _currentHistoryEntry = new();
     private int _currentHistoryIndex = 0;
 
-    public Vim(string buffer)
+    public Vim2(string buffer)
     {
         Lines = buffer.Replace("\r", "").Split('\n').ToList();
     }
@@ -61,7 +65,24 @@
         var x = xPadding;
         var y = yPadding;
 
-        ProcessEvents();
+        var input = "";
+        while (true)
+        {
+            var c = Raylib.GetCharPressed();
+            if (c == 0) { break; }
+            input += char.ConvertFromUtf32(c);
+        }
+        Process(input: input);
+
+        var pressedKeys = Enum.GetValues<KeyboardKey>().Where(key => Raylib.IsKeyPressed(key) || Raylib.IsKeyPressedRepeat(key)).ToList();
+        foreach (var pressedKey in pressedKeys)
+        {
+            Process(
+                pressedKey,
+                isShift: Raylib.IsKeyDown(KeyboardKey.LeftShift) || Raylib.IsKeyDown(KeyboardKey.LeftShift),
+                isControl: Raylib.IsKeyDown(KeyboardKey.LeftControl) || Raylib.IsKeyDown(KeyboardKey.RightControl)
+            );
+        }
 
         // text
         foreach (var line in Lines)
@@ -93,69 +114,76 @@
         }
     }
 
-    public void ProcessEvents()
+    public void Process(KeyboardKey key = KeyboardKey.Null, bool isShift = false, bool isControl = false, string input = "")
     {
         bool resetLastPressedKey = false;
         var prevMode = _mode;
-        var isShift = VimInput.IsShift();
-        var isControl = VimInput.IsControl();
-        if (VimInput.Pressed(KeyboardKey.Down))
+        if (key == KeyboardKey.Down)
         {
             SetCursor(y: CursorY + 1);
             CommitCurrentHistoryEntry();
         }
-        if (VimInput.Pressed(KeyboardKey.Up))
+        else if (key == KeyboardKey.Up)
         {
             SetCursor(y: CursorY - 1);
             CommitCurrentHistoryEntry();
         }
-        if (VimInput.Pressed(KeyboardKey.Left))
+        else if (key == KeyboardKey.Left)
         {
             SetCursor(x: CursorX - 1);
             CommitCurrentHistoryEntry();
         }
-        if (VimInput.Pressed(KeyboardKey.Right))
+        else if (key == KeyboardKey.Right)
         {
             SetCursor(x: CursorX + 1);
             CommitCurrentHistoryEntry();
         }
-        if (_mode == Mode.Normal)
+        else if (_mode == Mode.Normal)
         {
-            if (VimInput.Pressed(KeyboardKey.J) || VimInput.Pressed(KeyboardKey.Enter)) { SetCursor(y: CursorY + 1); }
-            if (VimInput.Pressed(KeyboardKey.K)) { SetCursor(y: CursorY - 1); }
-            if (VimInput.Pressed(KeyboardKey.H)) { SetCursor(x: CursorX - 1); }
-            if (VimInput.Pressed(KeyboardKey.L)) { SetCursor(x: CursorX + 1); }
-            if (VimInput.Pressed(KeyboardKey.Backspace))
+            if (key is KeyboardKey.J or KeyboardKey.Enter) { Process(KeyboardKey.Down); }
+            else if (key == KeyboardKey.K) { Process(KeyboardKey.Up); }
+            else if (key == KeyboardKey.H) { Process(KeyboardKey.Left); }
+            else if (key == KeyboardKey.L) { Process(KeyboardKey.Right); }
+            else if (key == KeyboardKey.Backspace)
             {
                 if (CursorX != 0) { SetCursor(x: CursorX - 1); }
                 else if (CursorY != 0) { SetCursor(x: Lines[CursorY - 1].Length, y: CursorY - 1); }
             }
-            if (VimInput.Pressed(KeyboardKey.Zero)) { SetCursor(x: 0); }
-            if (isShift && VimInput.Pressed(KeyboardKey.Four)) { SetCursor(x: Lines[CursorY].Length - 1); }
-            if (VimInput.Pressed(KeyboardKey.I)) { SetMode(Mode.Insert); }
-            if (isShift && VimInput.Pressed(KeyboardKey.A))
+            else if (key == KeyboardKey.Zero) { SetCursor(x: 0); }
+            else if (isShift && key == KeyboardKey.Four) { SetCursor(x: Lines[CursorY].Length - 1); }
+            else if (key == KeyboardKey.I)
             {
                 SetMode(Mode.Insert);
-                SetCursor(x: Lines[CursorY].Length);
+                _lastExecutedKey = KeyboardKey.I;
             }
-            else if (VimInput.Pressed(KeyboardKey.A))
+            else if (isShift && key == KeyboardKey.A)
+            {
+                Process(KeyboardKey.Four, isShift: true);
+                Process(KeyboardKey.A);
+                _lastExecutedKey = KeyboardKey.A;
+                _lastExecutedShift = true;
+            }
+            else if (key == KeyboardKey.A)
             {
                 SetMode(Mode.Insert);
                 SetCursor(x: CursorX + 1);
             }
-            if (VimInput.Pressed(KeyboardKey.D) && _lastPressedKey == (int)KeyboardKey.D || VimInput.PressedRepeat(KeyboardKey.D))
+            else if (key == KeyboardKey.D && _lastPressedKey == (int)KeyboardKey.D)
             {
-                _currentHistoryEntry.StartX = 0;
-                _currentHistoryEntry.StartY = CursorY;
-                _currentHistoryEntry.RemovedTextToTheRight = Lines[CursorY] + "\n";
-                CommitCurrentHistoryEntry();
+                if (Lines is not [""])
+                {
+                    _currentHistoryEntry.StartX = 0;
+                    _currentHistoryEntry.StartY = CursorY;
+                    _currentHistoryEntry.RemovedTextToTheRight = Lines[CursorY] + "\n";
+                    CommitCurrentHistoryEntry();
 
-                if (Lines.Count != 1) { Lines.RemoveAt(CursorY); }
-                else { Lines[0] = ""; }
-                SetCursor(y: CursorY);
-                resetLastPressedKey = true;
+                    if (Lines.Count != 1) { Lines.RemoveAt(CursorY); }
+                    else { Lines[0] = ""; }
+                    SetCursor(y: CursorY);
+                    resetLastPressedKey = true;
+                }
             }
-            if (VimInput.Pressed(KeyboardKey.X))
+            else if (key is KeyboardKey.X or KeyboardKey.Delete)
             {
                 if (Lines[CursorY].Length != 0)
                 {
@@ -166,7 +194,7 @@
                     SetCursor(x: CursorX);
                 }
             }
-            if (VimInput.Pressed(KeyboardKey.U))
+            else if (key == KeyboardKey.U)
             {
                 if (_currentHistoryIndex != 0)
                 {
@@ -174,7 +202,7 @@
                     Undo(_history[_currentHistoryIndex]);
                 }
             }
-            if (isControl && VimInput.Pressed(KeyboardKey.R))
+            else if (isControl && key == KeyboardKey.R)
             {
                 if (_currentHistoryIndex != _history.Count)
                 {
@@ -185,8 +213,8 @@
         }
         else if (_mode == Mode.Insert)
         {
-            if (VimInput.Pressed(KeyboardKey.Escape)) { SetMode(Mode.Normal); }
-            if (VimInput.Pressed(KeyboardKey.Delete))
+            if (key == KeyboardKey.Escape) { SetMode(Mode.Normal); }
+            else if (key == KeyboardKey.Delete)
             {
                 if (CursorX != Lines[CursorY].Length)
                 {
@@ -201,7 +229,7 @@
                     Lines.RemoveAt(CursorY + 1);
                 }
             }
-            if (VimInput.Pressed(KeyboardKey.Backspace))
+            else if (key == KeyboardKey.Backspace)
             {
                 if (CursorX != 0)
                 {
@@ -218,23 +246,21 @@
                     SetCursor(x: originalLineLength, y: CursorY - 1);
                 }
             }
-            if (VimInput.Pressed(KeyboardKey.Enter))
+            else if (key == KeyboardKey.Enter)
             {
                 Lines.Insert(CursorY + 1, Lines[CursorY][CursorX..]);
                 Lines[CursorY] = Lines[CursorY][..CursorX];
                 SetCursor(x: 0, y: CursorY + 1);
                 _currentHistoryEntry.Add("\n");
             }
-            while (true)
+            else if (input != "")
             {
-                var codePoint = VimInput.GetCharPressed();
-                if (codePoint == 0) { break; }
-                var text = char.ConvertFromUtf32(codePoint);
-                Lines[CursorY] = Lines[CursorY].Insert(CursorX, text);
-                _currentHistoryEntry.Add(text);
-                SetCursor(x: CursorX + text.Length);
+                Lines[CursorY] = Lines[CursorY].Insert(CursorX, input);
+                _currentHistoryEntry.Add(input);
+                SetCursor(x: CursorX + input.Length);
             }
         }
+
         if (_mode == Mode.Insert && prevMode != Mode.Insert)
         {
             _currentHistoryEntry.StartX = CursorX;
@@ -243,7 +269,7 @@
         else if (_mode != Mode.Insert && prevMode == Mode.Insert) { CommitCurrentHistoryEntry(); }
         if (!resetLastPressedKey)
         {
-            var keyPressed = VimInput.GetPressed();
+            var keyPressed = (int)key;
             if (keyPressed != 0) { _lastPressedKey = keyPressed; }
         }
         else { _lastPressedKey = 0; }
@@ -362,3 +388,4 @@
         }
     }
 }
+*/

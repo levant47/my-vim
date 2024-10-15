@@ -1,4 +1,5 @@
 ﻿VimTests.RunAllTests();
+// TODO: CLI argument validation
 if (args[0] == "--just-tests") { return; }
 
 var SHOW_FPS = false;
