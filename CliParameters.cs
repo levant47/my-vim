@@ -15,7 +15,7 @@
             }
             else
             {
-                if (result.InputPath != "") { Usage(); }
+                if (result.InputPath != null) { Usage(); }
                 result.InputPath = item;
             }
         }
