@@ -39,31 +39,39 @@
         foreach (var shortTest in _shortTests)
         {
             var vim = new Vim(shortTest.InitialBuffer);
-            foreach (var input in ParseShortTestInput(shortTest.Commands))
-            {
-                vim.Process(input);
-            }
             var testName = $"{{{shortTest.Commands}}}";
-            tests.Add(new(
-                testName,
-                Success: vim.GetBuffer() == shortTest.ExpectedBuffer,
-                $"Expected '{shortTest.ExpectedBuffer.Replace("\n", "\\n")}', got '{vim.GetBuffer().Replace("\n", "\\n")}'"
-            ));
+            try
+            {
+                foreach (var input in ParseShortTestInput(shortTest.Commands))
+                {
+                    vim.Process(input);
+                }
+                tests.Add(new(
+                    testName,
+                    Success: vim.GetBuffer() == shortTest.ExpectedBuffer,
+                    $"Expected '{shortTest.ExpectedBuffer.Replace("\n", "\\n")}', got '{vim.GetBuffer().Replace("\n", "\\n")}'"
+                ));
+            }
+            catch (Exception exception) { tests.Add(new(testName, Success: false, exception.Message)); }
         }
 
         foreach (var shortTest in _shortCursorTests)
         {
             var vim = new Vim(shortTest.InitialBuffer);
-            foreach (var input in ParseShortTestInput(shortTest.Commands))
-            {
-                vim.Process(input);
-            }
             var testName = $"{{{shortTest.Commands}}}";
-            tests.Add(new(
-                testName,
-                Success: vim.CursorX == shortTest.ExpectedCursorX && vim.CursorY == shortTest.ExpectedCursorY,
-                $"Expected X = {shortTest.ExpectedCursorX}, Y = {shortTest.ExpectedCursorY}, got X = {vim.CursorX}, Y = {vim.CursorY}"
-            ));
+            try
+            {
+                foreach (var input in ParseShortTestInput(shortTest.Commands))
+                {
+                    vim.Process(input);
+                }
+                tests.Add(new(
+                    testName,
+                    Success: vim.CursorX == shortTest.ExpectedCursorX && vim.CursorY == shortTest.ExpectedCursorY,
+                    $"Expected X = {shortTest.ExpectedCursorX}, Y = {shortTest.ExpectedCursorY}, got X = {vim.CursorX}, Y = {vim.CursorY}"
+                ));
+            }
+            catch (Exception exception) { tests.Add(new(testName, Success: false, exception.Message)); }
         }
 
         Console.WriteLine();
@@ -109,8 +117,11 @@
         new("abc", "a", 1, 0),
         new("abc", "$ a", 3, 0),
         new("abc", "A", 3, 0),
-        new("hello", "$ i escape i escape", 3, 0),
+        new("hello", "$ i escape i escape", 2, 0),
         new("", "i 'hello' escape", 4, 0),
+        new("abc\ndef", "j i backspace", 3, 0),
+        new("ab", "a enter", 0, 1),
+        new("abc\ndef", "j $ g g", 0, 0),
     ];
 
     private static ShortVimTest[] _shortTests =
@@ -135,6 +146,9 @@
         new("abc", "x x u u" ,"abc"),
         new("", "i 'hello' escape period", "hellhelloo"),
         new("", "a 'hello' escape period", "hellohello"),
+        new("abc", "i backspace", "abc"),
+        new("abc", "l i backspace", "bc"),
+        new("abc\ndef", "j i backspace", "abcdef"),
     ];
 
     private static void Assert(object actual, object expected)
