@@ -2,6 +2,12 @@
 {
     private class TestFailedException(string message) : Exception(message);
 
+    private record ShortVimTest(string InitialBuffer, string Commands, string ExpectedBuffer);
+
+    private record ShortVimCursorTest(string InitialBuffer, string Commands, int ExpectedCursorX, int ExpectedCursorY);
+
+    private record TestResult(string Name, bool Success, string ErrorMessage = "");
+
     private static Vim vim = null!;
     private const string DefaultInitialBuffer = """
     var x = 10;
@@ -11,473 +17,190 @@
 
     public static void RunAllTests()
     {
-        var tests = typeof(VimTests).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
+        var testFunctions = typeof(VimTests).GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static)
             .Where(method => method.Name.StartsWith("Test"))
             .ToList();
-        var passed = new List<string>();
-        var failed = new List<string>();
-        foreach (var test in tests)
+        var tests = new List<TestResult>();
+        foreach (var test in testFunctions)
         {
             vim = new(DefaultInitialBuffer);
             try
             {
                 test.Invoke(obj: null, parameters: null);
-                passed.Add(test.Name);
+                tests.Add(new(test.Name, Success: true));
             }
             catch (TargetInvocationException invocationException)
             {
                 var exception = invocationException.InnerException!;
-                Console.WriteLine($"{test.Name} failed: {exception.Message}");
-                failed.Add(test.Name);
+                tests.Add(new(test.Name, Success: false, exception.Message));
             }
+        }
+
+        foreach (var shortTest in _shortTests)
+        {
+            var vim = new Vim(shortTest.InitialBuffer);
+            foreach (var input in ParseShortTestInput(shortTest.Commands))
+            {
+                vim.Process(input);
+            }
+            var testName = $"{{{shortTest.Commands}}}";
+            tests.Add(new(
+                testName,
+                Success: vim.GetBuffer() == shortTest.ExpectedBuffer,
+                $"Expected '{shortTest.ExpectedBuffer.Replace("\n", "\\n")}', got '{vim.GetBuffer().Replace("\n", "\\n")}'"
+            ));
+        }
+
+        foreach (var shortTest in _shortCursorTests)
+        {
+            var vim = new Vim(shortTest.InitialBuffer);
+            foreach (var input in ParseShortTestInput(shortTest.Commands))
+            {
+                vim.Process(input);
+            }
+            var testName = $"{{{shortTest.Commands}}}";
+            tests.Add(new(
+                testName,
+                Success: vim.CursorX == shortTest.ExpectedCursorX && vim.CursorY == shortTest.ExpectedCursorY,
+                $"Expected X = {shortTest.ExpectedCursorX}, Y = {shortTest.ExpectedCursorY}, got X = {vim.CursorX}, Y = {vim.CursorY}"
+            ));
         }
 
         Console.WriteLine();
-        if (failed.Count == 0) { Console.WriteLine("All tests passed!"); }
+        if (tests.All(test => test.Success)) { Console.WriteLine("All tests passed!"); }
         else
         {
+            foreach (var test in tests)
+            {
+                if (test.Success) { continue; }
+                Console.WriteLine($"Test '{test.Name}' failed: {test.ErrorMessage}");
+            }
+            Console.WriteLine();
+
             var longestTestName = tests.Max(test => test.Name.Length);
             foreach (var test in tests)
             {
-                Console.WriteLine($"{(test.Name + ":").PadRight(longestTestName + 1)} {(passed.Contains(test.Name) ? "✓" : "×")}");
+                Console.WriteLine($"{(test.Name + ":").PadRight(longestTestName + 1)} {(test.Success ? "✓" : "×")}");
             }
-            Console.WriteLine($"Failed: {failed.Count}, passed: {passed.Count}, total: {failed.Count + passed.Count}");
+            Console.WriteLine($"Failed: {tests.Count(test => !test.Success)}, passed: {tests.Count(test => test.Success)}, total: {tests.Count}");
         }
     }
 
-    private static void TestJ()
-    {
-        vim.Process(KeyboardKey.J);
-        Assert(vim.CursorX, 0);
-        Assert(vim.CursorY, 1);
-    }
+    private static ShortVimCursorTest[] _shortCursorTests =
+    [
+        new("a\nb", "j", 0, 1),
+        new("a\nb", "j j", 0, 1),
+        new("a\nb", "k", 0, 0),
+        new("a\nb", "j k", 0, 0),
+        new("a\nb\nc", "j j k", 0, 1),
+        new("ab", "h", 0, 0),
+        new("ab", "l h", 0, 0),
+        new("abc", "l l h", 1, 0),
+        new("ab", "l", 1, 0),
+        new("abc", "$ l", 2, 0),
+        new("abc", "l 0", 0, 0),
+        new("abc", "$ 0", 0, 0),
+        new("abc", "$", 2, 0),
+        new("ab\nc\ndef", "$ j", 0, 0),
+        new("ab\nc\ndef", "$ j j", 2, 0),
+        new("\nabc", "$ j", 2, 0),
+        new("abc\n\ndef", "j $ j", 2, 0),
+        new("a\nbcd", "$ l j", 2, 0),
+        new("abc", "a", 1, 0),
+        new("abc", "$ a", 3, 0),
+        new("abc", "A", 3, 0),
+        new("hello", "$ i escape i escape", 3, 0),
+        new("", "i 'hello' escape", 4, 0),
+    ];
 
-    private static void TestJBeyondLastLine()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.J);
-        Assert(vim.CursorX, 0);
-        Assert(vim.CursorY, vim.Lines.Count - 1);
-    }
-
-    private static void TestKOnFirstLine()
-    {
-        vim.Process(KeyboardKey.K);
-        Assert(vim.CursorY, 0);
-    }
-
-    private static void TestJK()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.K);
-        Assert(vim.CursorY, 0);
-    }
-
-    private static void TestJJK()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.K);
-        Assert(vim.CursorY, 1);
-    }
-
-    private static void TestHAtLineStart()
-    {
-        vim.Process(KeyboardKey.H);
-        Assert(vim.CursorX, 0);
-    }
-
-    private static void TestLH()
-    {
-        vim.Process(KeyboardKey.L);
-        vim.Process(KeyboardKey.H);
-        Assert(vim.CursorX, 0);
-    }
-
-    private static void TestLLH()
-    {
-        vim.Process(KeyboardKey.L);
-        vim.Process(KeyboardKey.L);
-        vim.Process(KeyboardKey.H);
-        Assert(vim.CursorX, 1);
-    }
-
-    private static void TestL()
-    {
-        vim.Process(KeyboardKey.L);
-        Assert(vim.CursorX, 1);
-    }
-
-    private static void TestShiftFourL()
-    {
-        vim.Process(KeyboardKey.Four, isShift: true);
-        vim.Process(KeyboardKey.L);
-        Assert(vim.CursorX, "var x = 10;".Length - 1);
-    }
-
-    private static void TestLZero()
-    {
-        vim.Process(KeyboardKey.L);
-        vim.Process(KeyboardKey.Zero);
-        Assert(vim.CursorX, 0);
-    }
-
-    private static void TestShiftFourZero()
-    {
-        vim.Process(KeyboardKey.Four, isShift: true);
-        vim.Process(KeyboardKey.Zero);
-        Assert(vim.CursorX, 0);
-    }
-
-    private static void TestShiftFour()
-    {
-        vim.Process(KeyboardKey.Four, isShift: true);
-        Assert(vim.CursorX, "var x = 10;".Length - 1);
-    }
-
-    private static void TestShiftFourJ()
-    {
-        var vim = new Vim("""
-        var x = 12;
-        var y = 1;
-        var z = 123;
-        """);
-        vim.Process(KeyboardKey.Four, isShift: true);
-        Assert(vim.CursorX, "var x = 12;".Length - 1);
-        vim.Process(KeyboardKey.J);
-        Assert(vim.CursorX, "var y = 1;".Length - 1);
-        vim.Process(KeyboardKey.J);
-        Assert(vim.CursorX, "var z = 123;".Length - 1);
-    }
-
-    private static void TestShiftFourOnEmptyLineJ()
-    {
-        var vim = new Vim("""
-        
-        var x = 10;
-        """);
-        vim.Process(KeyboardKey.Four, isShift: true);
-        vim.Process(KeyboardKey.J);
-        Assert(vim.CursorX, "var x = 10;".Length - 1);
-    }
-
-    private static void TestJShiftFourOnEmptyLineJ()
-    {
-        var vim = new Vim("""
-        var x = 10;
-        
-        var y = 20;
-        """);
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.Four, isShift: true);
-        vim.Process(KeyboardKey.J);
-        Assert(vim.CursorX, "var y = 20;".Length - 1);
-    }
-
-    private static void TestShiftFourLJ()
-    {
-        var vim = new Vim("""
-        var x = 1;
-        var y = 12;
-        """);
-        vim.Process(KeyboardKey.Four, isShift: true);
-        vim.Process(KeyboardKey.L);
-        vim.Process(KeyboardKey.J);
-        Assert(vim.CursorX, "var y = 12;".Length - 1);
-    }
-
-    private static void TestA()
-    {
-        vim.Process(KeyboardKey.A);
-        Assert(vim.CursorX, 1);
-    }
-
-    private static void TestShiftFourA()
-    {
-        vim.Process(KeyboardKey.Four, isShift: true);
-        vim.Process(KeyboardKey.A);
-        Assert(vim.CursorX, "var x = 10;".Length);
-    }
-
-    private static void TestShiftA()
-    {
-        vim.Process(KeyboardKey.A, isShift: true);
-        Assert(vim.CursorX, "var x = 10;".Length);
-    }
-
-    private static void TestIText()
-    {
-        var vim = new Vim("");
-        vim.Process(KeyboardKey.I);
-        vim.Process(input: "Hello, world!");
-        Assert(vim.GetBuffer(), "Hello, world!");
-    }
-
-    private static void TestITextEscapeIText()
-    {
-        var vim = new Vim("");
-        vim.Process(KeyboardKey.I);
-        vim.Process(input: "hello");
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.I);
-        vim.Process(input: "hello");
-        Assert(vim.GetBuffer(), "hellhelloo");
-    }
-
-    public static void TestDDUndo()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.D);
-        vim.Process(KeyboardKey.D);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, DefaultInitialBuffer);
-    }
-
-    public static void TestDDUndoRedo()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.D);
-        vim.Process(KeyboardKey.D);
-        vim.Process(KeyboardKey.U);
-        vim.Process(KeyboardKey.R, isControl: true);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, """
-        var x = 10;
-        var z = 30;
-        """);
-    }
-    public static void TestDeleteUndo()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.I);
-        foreach (var _ in "var y = 20;") { vim.Process(KeyboardKey.Delete); }
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, DefaultInitialBuffer);
-    }
-
-    public static void TestDeleteUndoRedo()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.I);
-        foreach (var _ in "var y = 20;") { vim.Process(KeyboardKey.Delete); }
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-        vim.Process(KeyboardKey.R, isControl: true);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, """
-        var x = 10;
-        
-        var z = 30;
-        """);
-    }
-
-    public static void TestBackspaceUndo()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.A, isShift: true);
-        foreach (var _ in "var y = 20;") { vim.Process(KeyboardKey.Backspace); }
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, DefaultInitialBuffer);
-    }
-
-    public static void TestBackspaceUndoRedo()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.A, isShift: true);
-        foreach (var _ in "var y = 20;") { vim.Process(KeyboardKey.Backspace); }
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-        vim.Process(KeyboardKey.R, isControl: true);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, """
-        var x = 10;
-        
-        var z = 30;
-        """);
-    }
-
-    public static void TestAddTextUndo()
-    {
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.A, isShift: true);
-        vim.Process(KeyboardKey.Enter);
-        vim.Process(input: "var z = 30;");
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, DefaultInitialBuffer);
-    }
-
-    public static void TestAddTextUndoRedo()
-    {
-        var originalBuffer = """
-        var x = 10;
-        var y = 20;
-        """;
-        var vim = new Vim(originalBuffer);
-
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.A, isShift: true);
-        vim.Process(KeyboardKey.Enter);
-        vim.Process(input: "var z = 30;");
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-        vim.Process(KeyboardKey.R, isControl: true);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, """
-        var x = 10;
-        var y = 20;
-        var z = 30;
-        """);
-    }
-
-    public static void TestBackspaceAddTextDeleteUndo()
-    {
-        var originalBuffer = """
-        var x = 10;
-        
-        var y = 20;
-        """;
-        var vim = new Vim(originalBuffer);
-
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.A);
-        foreach (var _ in "var x = 10;\n") { vim.Process(KeyboardKey.Backspace); }
-        foreach (var _ in "\nvar y = 20;") { vim.Process(KeyboardKey.Delete); }
-        vim.Process(input: "var z = 30;");
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, originalBuffer);
-    }
-
-    public static void TestBackspaceAddTextDeleteUndoRedo()
-    {
-        var originalBuffer = """
-        var x = 10;
-        
-        var y = 20;
-        """;
-        var vim = new Vim(originalBuffer);
-
-        vim.Process(KeyboardKey.J);
-        vim.Process(KeyboardKey.A);
-        foreach (var _ in "var x = 10;\n") { vim.Process(KeyboardKey.Backspace); }
-        foreach (var _ in "\nvar y = 20;") { vim.Process(KeyboardKey.Delete); }
-        vim.Process(input: "var z = 30;");
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.U);
-        vim.Process(KeyboardKey.R, isControl: true);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, """
-        var z = 30;
-        """);
-    }
-
-    public static void TestXUndo()
-    {
-        var originalBuffer = "var x = 10;";
-        var vim = new Vim(originalBuffer);
-
-        vim.Process(KeyboardKey.X);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, originalBuffer);
-    }
-
-    public static void TestXUndoRedo()
-    {
-        var originalBuffer = "var x = 10;";
-        var vim = new Vim(originalBuffer);
-
-        vim.Process(KeyboardKey.X);
-        vim.Process(KeyboardKey.U);
-        vim.Process(KeyboardKey.R, isControl: true);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, "ar x = 10;");
-    }
-
-    public static void TestMultiXUndo()
-    {
-        var originalBuffer = "var x = 10;";
-        var vim = new Vim(originalBuffer);
-
-        vim.Process(KeyboardKey.X);
-        vim.Process(KeyboardKey.X);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, "ar x = 10;");
-    }
-
-    public static void TestMultiXMultiUndo()
-    {
-        var originalBuffer = "var x = 10;";
-        var vim = new Vim(originalBuffer);
-
-        vim.Process(KeyboardKey.X);
-        vim.Process(KeyboardKey.X);
-        vim.Process(KeyboardKey.U);
-        vim.Process(KeyboardKey.U);
-
-        var newBuffer = string.Join(Environment.NewLine, vim.Lines);
-        Assert(newBuffer, originalBuffer);
-    }
-
-    public static void TestCursor()
-    {
-        var vim = new Vim("");
-        vim.Process(KeyboardKey.I);
-        vim.Process(input: "hello");
-        vim.Process(KeyboardKey.Escape);
-        Assert(vim.CursorX, "hello".Length - 1);
-    }
-
-    public static void TestIRepeat()
-    {
-        var vim = new Vim("");
-        vim.Process(KeyboardKey.I);
-        vim.Process(input: "hello");
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.Period);
-        Assert(vim.Lines[0], "hellhelloo");
-    }
-
-    public static void TestARepeat()
-    {
-        var vim = new Vim("");
-        vim.Process(KeyboardKey.A);
-        vim.Process(input: "hello");
-        vim.Process(KeyboardKey.Escape);
-        vim.Process(KeyboardKey.Period);
-        Assert(vim.Lines[0], "hellohello");
-    }
+    private static ShortVimTest[] _shortTests =
+    [
+        new("", "i 'Hello, world!'", "Hello, world!"),
+        new("", "i 'hello' escape i 'hello'", "hellhelloo"),
+        new("", "i enter", "\n"),
+        new("ab", "right i enter", "a\nb"),
+        new("abc\ndef\nghi", "j d d u", "abc\ndef\nghi"),
+        new("abc\ndef\nghi", "j d d u ^r", "abc\ndef\nghi"),
+        new("abc\ndef\nghi", "j i delete delete delete escape u", "abc\ndef\nghi"),
+        new("abc\ndef\nghi", "j i delete delete delete escape u ^r", "abc\n\nghi"),
+        new("abc\ndef\nghi", "j i backspace backspace backspace escape u", "abc\ndef\nghi"),
+        new("abc\ndef\nghi", "j i backspace backspace backspace escape u ^r", "abc\n\nghi"),
+        new("abc\ndef\nghi", "j j A enter 'jkl' escape u", "abc\ndef\nghi"),
+        new("abc\ndef\nghi", "j j A enter 'jkl' escape u ^r", "abc\ndef\nghi\njkl"),
+        new("abc\n\nghi", "j a backspace backspace backspace backspace delete delete delete delete 'def' escape u", "abc\n\nghi"),
+        new("abc\n\nghi", "j a backspace backspace backspace backspace delete delete delete delete 'def' escape u ^r", "def"),
+        new("abc", "x u" ,"abc"),
+        new("abc", "x u ^r" ,"bc"),
+        new("abc", "x x u" ,"bc"),
+        new("abc", "x x u u" ,"abc"),
+        new("", "i 'hello' escape period", "hellhelloo"),
+        new("", "a 'hello' escape period", "hellohello"),
+    ];
 
     private static void Assert(object actual, object expected)
     {
-        if (!actual.Equals(expected)) { throw new TestFailedException($"Expected '{expected}', got '{actual}'"); }
+        if (!actual.Equals(expected)) { throw new($"Expected '{expected}', got '{actual}'"); }
+    }
+
+    private static void Process(this Vim vim, KeyboardKey key = KeyboardKey.Null, bool isShift = false, bool isControl = false, string input = "")
+    {
+        vim.Process(new() { Key = key, Modifier = isShift ? VimInputModifier.Shift : isControl ? VimInputModifier.Control : VimInputModifier.None, Text = input });
     }
 
     private static string GetBuffer(this Vim vim) => vim.Lines.Join("\n");
+
+    private static List<VimInput> ParseShortTestInput(string source)
+    {
+        var result = new List<VimInput>();
+        var i = 0;
+        var currentEntry = new VimInput();
+        while (i != source.Length)
+        {
+            if (source[i] == ' ') { i++; }
+            else if (source[i] == '\'')
+            {
+                i++;
+                var text = new StringBuilder();
+                while (i != source.Length && source[i] != '\'') { text.Append(source[i]); i++; }
+                if (i != source.Length) { i++; }
+                currentEntry.Text = text.ToString();
+                result.Add(currentEntry);
+                currentEntry = new();
+            }
+            else
+            {
+                var wordBuilder = new StringBuilder();
+                while (i != source.Length && source[i] != ' ') { wordBuilder.Append(source[i]); i++; }
+                var word = wordBuilder.ToString();
+                if (word[0] == '^')
+                {
+                    word = word[1..];
+                    currentEntry.Modifier = VimInputModifier.Control;
+                }
+                if (word == "$")
+                {
+                    currentEntry.Key = KeyboardKey.Four;
+                    currentEntry.Modifier = VimInputModifier.Shift;
+                }
+                else if (word == "0") { currentEntry.Key = KeyboardKey.Zero; }
+                else if (word == "1") { currentEntry.Key = KeyboardKey.One; }
+                else if (word == "2") { currentEntry.Key = KeyboardKey.Two; }
+                else if (word == "3") { currentEntry.Key = KeyboardKey.Three; }
+                else if (word == "4") { currentEntry.Key = KeyboardKey.Four; }
+                else if (word == "5") { currentEntry.Key = KeyboardKey.Five; }
+                else if (word == "6") { currentEntry.Key = KeyboardKey.Six; }
+                else if (word == "7") { currentEntry.Key = KeyboardKey.Seven; }
+                else if (word == "8") { currentEntry.Key = KeyboardKey.Eight; }
+                else if (word == "9") { currentEntry.Key = KeyboardKey.Nine; }
+                else
+                {
+                    currentEntry.Key = Enum.Parse<KeyboardKey>(word, ignoreCase: true);
+                    if (word.Length == 1 && char.IsUpper(word[0])) { currentEntry.Modifier = VimInputModifier.Shift; }
+                }
+                result.Add(currentEntry);
+                currentEntry = new();
+            }
+        }
+        return result;
+    }
 }

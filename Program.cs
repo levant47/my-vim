@@ -1,11 +1,11 @@
-﻿VimTests.RunAllTests();
-// TODO: CLI argument validation
-if (args[0] == "--just-tests") { return; }
+﻿var SHOW_FPS = false;
 
-var SHOW_FPS = false;
+var cli = CliParameters.Parse(args);
 
-var inputFilePath = args[0];
-var inputFileContents = File.ReadAllText(inputFilePath);
+VimTests.RunAllTests();
+if (cli.JustTests) { return; }
+
+var inputFileContents = cli.InputPath != null ? File.ReadAllText(cli.InputPath) : "";
 
 Raylib.SetTraceLogLevel(TraceLogLevel.Warning);
 Raylib.InitWindow(0, 0, "Test");
