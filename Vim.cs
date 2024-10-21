@@ -340,7 +340,15 @@
             }
             case CommandType.Redo:
             {
-                // TODO!
+                if (_historyIndex != _history.Count)
+                {
+                    var entry = _history[_historyIndex];
+                    Redo(entry);
+                    _historyIndex++;
+                    CursorX = entry.StartX;
+                    CursorY = entry.StartY;
+                    RecomputeCursor();
+                }
                 break;
             }
             default: throw new ArgumentOutOfRangeException();
@@ -406,5 +414,40 @@
         CursorX = entry.StartX;
         CursorY = entry.StartY;
         RecomputeCursor();
+    }
+
+    private void Redo(HistoryEntry entry)
+    {
+        var x0 = entry.StartX;
+        var y0 = entry.StartY;
+        var textToRemove = entry.RemovedTextToTheLeft + entry.RemovedTextToTheRight;
+        if (textToRemove != "")
+        {
+            var isFirst = true;
+            foreach (var segment in textToRemove.Split('\n'))
+            {
+                if (!isFirst)
+                {
+                    Lines[y0] += Lines[y0 + 1];
+                    Lines.RemoveAt(y0 + 1);
+                }
+                Lines[y0] = Lines[y0].Remove(x0, segment.Length);
+                isFirst = false;
+            }
+        }
+        if (entry.AddedText != "")
+        {
+            var segments = entry.AddedText.Split('\n');
+            for (var i = 0; i < segments.Length; i++)
+            {
+                var x = i == 0 ? x0 : 0;
+                Lines[y0 + i] = Lines[y0 + i].Insert(x, segments[i]);
+                if (i != segments.Length - 1)
+                {
+                    Lines.Insert(y0 + i + 1, Lines[y0 + i][(x + segments[i].Length)..]);
+                    Lines[y0 + i] = Lines[y0 + i][..(x + segments[i].Length)];
+                }
+            }
+        }
     }
 }

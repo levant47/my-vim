@@ -135,7 +135,7 @@
         new("abc\ndef\nghi", "j i delete delete delete escape u", "abc\ndef\nghi"),
         new("abc\ndef\nghi", "j i delete delete delete escape u ^r", "abc\n\nghi"),
         new("abc\ndef\nghi", "j i backspace backspace backspace escape u", "abc\ndef\nghi"),
-        new("abc\ndef\nghi", "j i backspace backspace backspace escape u ^r", "abc\n\nghi"),
+        new("abc\ndef\nghi", "j i backspace backspace backspace escape u ^r", "adef\nghi"),
         new("abc\ndef\nghi", "j j A enter 'jkl' escape u", "abc\ndef\nghi"),
         new("abc\ndef\nghi", "j j A enter 'jkl' escape u ^r", "abc\ndef\nghi\njkl"),
         new("abc\n\nghi", "j a backspace backspace backspace backspace delete delete delete delete 'def' escape u", "abc\n\nghi"),
