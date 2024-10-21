@@ -17,10 +17,15 @@
 
         public void AddText(string text) { AddedText += text; }
 
-        public void RemoveTextToTheLeft(char c)
+        public void RemoveTextToTheLeft(char c, int x, int y)
         {
             if (AddedText != "") { AddedText = AddedText[..^1]; }
-            else { RemovedTextToTheLeft = c + RemovedTextToTheLeft; }
+            else
+            {
+                RemovedTextToTheLeft = c + RemovedTextToTheLeft;
+                StartX = x;
+                StartY = y;
+            }
         }
 
         public void RemoveTextToTheRight(char c) { RemovedTextToTheRight += c; }
@@ -145,8 +150,10 @@
                     new() { Type = CommandType.GoToLineEnd },
                 ],
                 (Mode.Normal, KeyboardKey.G, VimInputModifier.None) => [new() { Type = CommandType.ChangeMode, TargetMode = Mode.GMode }],
-                (Mode.Normal, KeyboardKey.X, VimInputModifier.None) or (_, KeyboardKey.Delete, VimInputModifier.None)
-                    => [new() { Type = CommandType.DeleteRight }],
+                (Mode.Normal, KeyboardKey.X, VimInputModifier.None) or (Mode.Normal, KeyboardKey.Delete, VimInputModifier.None) => [
+                    new() { Type = CommandType.DeleteRight },
+                    new() { Type = CommandType.Noop }, // commit history entry
+                ],
                 (Mode.Normal, KeyboardKey.U, VimInputModifier.None)
                     => [new() { Type = CommandType.Undo }],
                 (Mode.Normal, KeyboardKey.R, VimInputModifier.Control)
@@ -159,6 +166,8 @@
                     => [new() { Type = CommandType.InsertNewLine }],
                 (Mode.Insert, KeyboardKey.Backspace, VimInputModifier.None)
                     => [new() { Type = CommandType.DeleteLeft }],
+                (Mode.Normal, KeyboardKey.X, VimInputModifier.None) or (Mode.Insert, KeyboardKey.Delete, VimInputModifier.None)
+                    => [new() { Type = CommandType.DeleteRight }],
                 (Mode.GMode, KeyboardKey.G, VimInputModifier.None) => [
                     new() { Type = CommandType.GoToFileStart },
                     new() { Type = CommandType.ChangeMode, TargetMode = Mode.Normal },
@@ -176,6 +185,7 @@
 
     public enum CommandType
     {
+        Noop,
         RelativeNavigation,
         GoToLineStart,
         GoToLineEnd,
@@ -212,6 +222,7 @@
         var commitHistoryEntry = true;
         switch (command.Type)
         {
+            case CommandType.Noop: break;
             case CommandType.ChangeMode:
             {
                 _mode = command.TargetMode;
@@ -249,14 +260,15 @@
                         Lines.RemoveAt(CursorY);
                         CursorY--;
                         CursorX = previousLineLength;
-                        _currentHistoryEntry.RemoveTextToTheLeft('\n');
+                        _currentHistoryEntry.RemoveTextToTheLeft('\n', CursorX, CursorY);
                     }
                 }
                 else
                 {
-                    _currentHistoryEntry.RemoveTextToTheLeft(Lines[CursorY][CursorX - 1]);
+                    var removedCharacter = Lines[CursorY][CursorX - 1];
                     Lines[CursorY] = Lines[CursorY].Remove(CursorX - 1, 1);
                     CursorX--;
+                    _currentHistoryEntry.RemoveTextToTheLeft(removedCharacter, CursorX, CursorY);
                 }
                 commitHistoryEntry = false;
                 break;
