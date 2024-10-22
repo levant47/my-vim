@@ -4,7 +4,6 @@
     {
         Normal,
         Insert,
-        GMode,
     }
 
     public class HistoryEntry
@@ -44,6 +43,7 @@
     private List<HistoryEntry> _history = new();
     private int _historyIndex;
     private HistoryEntry _currentHistoryEntry = new();
+    private bool _gCommand = false;
 
     // rendering state
     public Font _font;
@@ -114,103 +114,109 @@
 
     public void Process(VimInput input)
     {
-        var commands = new List<Command>();
         if (_mode == Mode.Insert && input.Text != "")
         {
-            commands.Add(new()
+            Execute(new()
             {
-                Type = CommandType.AppendText,
+                Type = CommandType.Text,
                 Text = input.Text,
             });
         }
+        else if (_gCommand)
+        {
+            switch (input.Key, input.Modifier)
+            {
+                case (KeyboardKey.G, VimInputModifier.None):
+                    Execute(new() { Type = CommandType.GoToFileStart });
+                    break;
+            }
+            _gCommand = false;
+        }
         else if (input.Key != KeyboardKey.Null)
         {
-            commands.AddRange((_mode, input.Key, input.Modifier) switch
+            Command? command = null;
+            switch (_mode, input.Key, input.Modifier)
             {
-                (Mode.Normal, KeyboardKey.J, VimInputModifier.None) or (_, KeyboardKey.Down, VimInputModifier.None)
-                    => [new() { Type = CommandType.RelativeNavigation, DeltaY = +1 }],
-                (Mode.Normal, KeyboardKey.K, VimInputModifier.None) or (_, KeyboardKey.Up, VimInputModifier.None)
-                    => [new() { Type = CommandType.RelativeNavigation, DeltaY = -1 }],
-                (Mode.Normal, KeyboardKey.H, VimInputModifier.None) or (_, KeyboardKey.Left, VimInputModifier.None)
-                    => [new() { Type = CommandType.RelativeNavigation, DeltaX = -1 }],
-                (Mode.Normal, KeyboardKey.L, VimInputModifier.None) or (_, KeyboardKey.Right, VimInputModifier.None)
-                    => [new() { Type = CommandType.RelativeNavigation, DeltaX = +1 }],
-                (Mode.Normal, KeyboardKey.Zero, VimInputModifier.None) or (_, KeyboardKey.Home, VimInputModifier.None)
-                    => [new() { Type = CommandType.GoToLineStart }],
-                (Mode.Normal, KeyboardKey.Four, VimInputModifier.Shift) or (_, KeyboardKey.End, VimInputModifier.None)
-                    => [new() { Type = CommandType.GoToLineEnd }],
-                (Mode.Normal, KeyboardKey.I, VimInputModifier.None)
-                    => [new() { Type = CommandType.ChangeMode, TargetMode = Mode.Insert }],
-                (Mode.Normal, KeyboardKey.A, VimInputModifier.None) => [
-                    new() { Type = CommandType.ChangeMode, TargetMode = Mode.Insert },
-                    new() { Type = CommandType.RelativeNavigation, DeltaX = 1 },
-                ],
-                (Mode.Normal, KeyboardKey.A, VimInputModifier.Shift) => [
-                    new() { Type = CommandType.ChangeMode, TargetMode = Mode.Insert },
-                    new() { Type = CommandType.GoToLineEnd },
-                ],
-                (Mode.Normal, KeyboardKey.G, VimInputModifier.None) => [new() { Type = CommandType.ChangeMode, TargetMode = Mode.GMode }],
-                (Mode.Normal, KeyboardKey.X, VimInputModifier.None) or (Mode.Normal, KeyboardKey.Delete, VimInputModifier.None) => [
-                    new() { Type = CommandType.DeleteRight },
-                    new() { Type = CommandType.Noop }, // commit history entry
-                ],
-                (Mode.Normal, KeyboardKey.U, VimInputModifier.None)
-                    => [new() { Type = CommandType.Undo }],
-                (Mode.Normal, KeyboardKey.R, VimInputModifier.Control)
-                    => [new() { Type = CommandType.Redo }],
-                (Mode.Insert, KeyboardKey.Escape, VimInputModifier.None) => [
-                    new() { Type = CommandType.RelativeNavigation, DeltaX = -1 },
-                    new() { Type = CommandType.ChangeMode, TargetMode = Mode.Normal },
-                ],
-                (Mode.Insert, KeyboardKey.Enter, VimInputModifier.None)
-                    => [new() { Type = CommandType.InsertNewLine }],
-                (Mode.Insert, KeyboardKey.Backspace, VimInputModifier.None)
-                    => [new() { Type = CommandType.DeleteLeft }],
-                (Mode.Normal, KeyboardKey.X, VimInputModifier.None) or (Mode.Insert, KeyboardKey.Delete, VimInputModifier.None)
-                    => [new() { Type = CommandType.DeleteRight }],
-                (Mode.GMode, KeyboardKey.G, VimInputModifier.None) => [
-                    new() { Type = CommandType.GoToFileStart },
-                    new() { Type = CommandType.ChangeMode, TargetMode = Mode.Normal },
-                ],
-                (Mode.GMode, _, _) => [new() { Type = CommandType.ChangeMode, TargetMode = Mode.Normal }],
-                _ => Array.Empty<Command>(),
-            });
-        }
-
-        foreach (var command in commands)
-        {
-            Execute(command);
+                case (Mode.Normal, KeyboardKey.J, VimInputModifier.None) or (_, KeyboardKey.Down, VimInputModifier.None):
+                    command = new() { Type = CommandType.Down };
+                    break;
+                case (Mode.Normal, KeyboardKey.K, VimInputModifier.None) or (_, KeyboardKey.Up, VimInputModifier.None):
+                    command = new() { Type = CommandType.Up };
+                    break;
+                case (Mode.Normal, KeyboardKey.H, VimInputModifier.None) or (_, KeyboardKey.Left, VimInputModifier.None):
+                    command = new() { Type = CommandType.Left };
+                    break;
+                case (Mode.Normal, KeyboardKey.L, VimInputModifier.None) or (_, KeyboardKey.Right, VimInputModifier.None):
+                    command = new() { Type = CommandType.Right };
+                    break;
+                case (Mode.Normal, KeyboardKey.Zero, VimInputModifier.None) or (_, KeyboardKey.Home, VimInputModifier.None):
+                    command = new() { Type = CommandType.LineStart };
+                    break;
+                case (Mode.Normal, KeyboardKey.Four, VimInputModifier.Shift) or (_, KeyboardKey.End, VimInputModifier.None):
+                    command = new() { Type = CommandType.LineEnd };
+                    break;
+                case (Mode.Normal, KeyboardKey.I, VimInputModifier.None):
+                    command = new() { Type = CommandType.Insert };
+                    break;
+                case (Mode.Normal, KeyboardKey.A, VimInputModifier.None):
+                    command = new() { Type = CommandType.Append };
+                    break;
+                case (Mode.Normal, KeyboardKey.A, VimInputModifier.Shift):
+                    command = new() { Type = CommandType.AppendToEndOfLine };
+                    break;
+                case (Mode.Normal, KeyboardKey.G, VimInputModifier.None):
+                    _gCommand = true;
+                    break;
+                case (Mode.Normal, KeyboardKey.X, VimInputModifier.None) or (Mode.Normal, KeyboardKey.Delete, VimInputModifier.None):
+                    command = new() { Type = CommandType.Delete };
+                    break;
+                case (Mode.Normal, KeyboardKey.U, VimInputModifier.None):
+                    command = new() { Type = CommandType.Undo };
+                    break;
+                case (Mode.Normal, KeyboardKey.R, VimInputModifier.Control):
+                    command = new() { Type = CommandType.Redo };
+                    break;
+                case (Mode.Insert, KeyboardKey.Escape, VimInputModifier.None):
+                    command = new() { Type = CommandType.ExitInsertMode };
+                    break;
+                case (Mode.Insert, KeyboardKey.Enter, VimInputModifier.None):
+                    command = new() { Type = CommandType.NewLine };
+                    break;
+                case (Mode.Insert, KeyboardKey.Backspace, VimInputModifier.None):
+                    command = new() { Type = CommandType.Backspace };
+                    break;
+                case (Mode.Insert, KeyboardKey.Delete, VimInputModifier.None):
+                    command = new() { Type = CommandType.Delete };
+                    break;
+            }
+            if (command != null) { Execute(command); }
         }
     }
 
     public enum CommandType
     {
-        Noop,
-        RelativeNavigation,
-        GoToLineStart,
-        GoToLineEnd,
-        ChangeMode,
-        AppendText,
-        InsertNewLine,
-        DeleteLeft,
-        DeleteRight,
+        Text,
+        Left,
+        Down,
+        Up,
+        Right,
+        LineStart,
+        LineEnd,
+        Insert,
+        Append,
+        AppendToEndOfLine,
         GoToFileStart,
+        Delete,
         Undo,
         Redo,
+        ExitInsertMode,
+        NewLine,
+        Backspace,
     }
 
     public class Command
     {
         public CommandType Type;
-
-        public bool NotUserInput;
-
-        // RelativeNavigation
-        public int DeltaX;
-        public int DeltaY;
-
-        // ChangeMode
-        public Mode TargetMode;
 
         // AppendText
         public string Text = "";
@@ -222,59 +228,47 @@
         var commitHistoryEntry = true;
         switch (command.Type)
         {
-            case CommandType.Noop: break;
-            case CommandType.ChangeMode:
-            {
-                _mode = command.TargetMode;
-                RecomputeCursor();
-                break;
-            }
-            case CommandType.AppendText:
-            {
+            case CommandType.Text:
                 Lines[CursorY] = Lines[CursorY].Insert(CursorX, command.Text);
                 CursorX += command.Text.Length;
                 _currentHistoryEntry.AddText(command.Text);
                 commitHistoryEntry = false;
                 break;
-            }
-            case CommandType.InsertNewLine:
-            {
-                var left = Lines[CursorY][..CursorX];
-                var right = Lines[CursorY][CursorX..];
-                Lines[CursorY] = left;
-                Lines.Insert(CursorY + 1, right);
-                CursorX = 0;
+            case CommandType.Left: CursorX--; break;
+            case CommandType.Down:
                 CursorY++;
-                _currentHistoryEntry.AddText("\n");
-                commitHistoryEntry = false;
+                unsetCursorGlue = false;
                 break;
-            }
-            case CommandType.DeleteLeft:
-            {
-                if (CursorX == 0)
-                {
-                    if (CursorY != 0)
-                    {
-                        var previousLineLength = Lines[CursorY - 1].Length; 
-                        Lines[CursorY - 1] += Lines[CursorY];
-                        Lines.RemoveAt(CursorY);
-                        CursorY--;
-                        CursorX = previousLineLength;
-                        _currentHistoryEntry.RemoveTextToTheLeft('\n', CursorX, CursorY);
-                    }
-                }
-                else
-                {
-                    var removedCharacter = Lines[CursorY][CursorX - 1];
-                    Lines[CursorY] = Lines[CursorY].Remove(CursorX - 1, 1);
-                    CursorX--;
-                    _currentHistoryEntry.RemoveTextToTheLeft(removedCharacter, CursorX, CursorY);
-                }
-                commitHistoryEntry = false;
+            case CommandType.Up:
+                CursorY--;
+                unsetCursorGlue = false;
                 break;
-            }
-            case CommandType.DeleteRight:
-            {
+            case CommandType.Right:
+                CursorX++;
+                unsetCursorGlue = false;
+                break;
+            case CommandType.LineStart: CursorX = 0; break;
+            case CommandType.LineEnd:
+                LineEnd();
+                IsCursorGluedToEndOfLine = true;
+                unsetCursorGlue = false;
+                break;
+            case CommandType.Insert:
+                _mode = Mode.Insert;
+                break;
+            case CommandType.Append:
+                _mode = Mode.Insert;
+                CursorX++;
+                break;
+            case CommandType.AppendToEndOfLine:
+                _mode = Mode.Insert;
+                LineEnd();
+                break;
+            case CommandType.GoToFileStart:
+                CursorX = 0;
+                CursorY = 0;
+                break;
+            case CommandType.Delete:
                 if (CursorX == Lines[CursorY].Length)
                 {
                     if (CursorY != Lines.Count - 1)
@@ -289,42 +283,8 @@
                     _currentHistoryEntry.RemoveTextToTheRight(Lines[CursorY][CursorX]);
                     Lines[CursorY] = Lines[CursorY].Remove(CursorX, 1);
                 }
-                commitHistoryEntry = false;
+                commitHistoryEntry = _mode == Mode.Normal;
                 break;
-            }
-            case CommandType.RelativeNavigation:
-            {
-                CursorY = Math.Clamp(CursorY + command.DeltaY, 0, Lines.Count - 1);
-                if (_mode == Mode.Normal && command.DeltaX >= 0 && IsCursorGluedToEndOfLine)
-                {
-                    unsetCursorGlue = false;
-                    CursorX = Math.Max(0, Lines[CursorY].Length - 1);
-                }
-                else if (Lines[CursorY] == "") { CursorX = 0; }
-                else if (_mode == Mode.Normal) { CursorX = Math.Clamp(CursorX + command.DeltaX, 0, Lines[CursorY].Length - 1); }
-                else if (_mode == Mode.Insert) { CursorX = Math.Clamp(CursorX + command.DeltaX, 0, Lines[CursorY].Length); }
-                break;
-            }
-            case CommandType.GoToLineStart:
-            {
-                CursorX = 0;
-                break;
-            }
-            case CommandType.GoToLineEnd:
-            {
-                if (Lines[CursorY] == "") { CursorX = 0; }
-                else if (_mode == Mode.Normal) { CursorX = Lines[CursorY].Length - 1; }
-                else if (_mode == Mode.Insert) { CursorX = Lines[CursorY].Length; }
-                IsCursorGluedToEndOfLine = true;
-                unsetCursorGlue = false;
-                break;
-            }
-            case CommandType.GoToFileStart:
-            {
-                CursorX = 0;
-                CursorY = 0;
-                break;
-            }
             case CommandType.Undo:
             {
                 HistoryEntry entryToUndo;
@@ -347,13 +307,52 @@
                     _historyIndex++;
                     CursorX = entry.StartX;
                     CursorY = entry.StartY;
-                    RecomputeCursor();
                 }
                 break;
             }
-            default: throw new ArgumentOutOfRangeException();
+            case CommandType.ExitInsertMode:
+                _mode = Mode.Normal;
+                break;
+            case CommandType.NewLine:
+            {
+                var left = Lines[CursorY][..CursorX];
+                var right = Lines[CursorY][CursorX..];
+                Lines[CursorY] = left;
+                Lines.Insert(CursorY + 1, right);
+                CursorX = 0;
+                CursorY++;
+                _currentHistoryEntry.AddText("\n");
+                commitHistoryEntry = false;
+                break;
+            }
+            case CommandType.Backspace:
+            {
+                if (CursorX == 0)
+                {
+                    if (CursorY != 0)
+                    {
+                        var previousLineLength = Lines[CursorY - 1].Length;
+                        Lines[CursorY - 1] += Lines[CursorY];
+                        Lines.RemoveAt(CursorY);
+                        CursorY--;
+                        CursorX = previousLineLength;
+                        _currentHistoryEntry.RemoveTextToTheLeft('\n', CursorX, CursorY);
+                    }
+                }
+                else
+                {
+                    var removedCharacter = Lines[CursorY][CursorX - 1];
+                    Lines[CursorY] = Lines[CursorY].Remove(CursorX - 1, 1);
+                    CursorX--;
+                    _currentHistoryEntry.RemoveTextToTheLeft(removedCharacter, CursorX, CursorY);
+                }
+                commitHistoryEntry = false;
+                break;
+            }
+            default: throw new();
         }
         if (unsetCursorGlue) { IsCursorGluedToEndOfLine = false; }
+        RecomputeCursor();
         if (commitHistoryEntry)
         {
             if (!_currentHistoryEntry.IsEmpty())
@@ -371,7 +370,8 @@
     private void RecomputeCursor()
     {
         CursorY = Math.Clamp(CursorY, 0, Lines.Count - 1);
-        CursorX = Math.Clamp(CursorX, 0, Math.Max(0, Lines[CursorY].Length - (_mode == Mode.Insert ? 0 : 1)));
+        var maxX = Math.Max(0, Lines[CursorY].Length - (_mode == Mode.Insert ? 0 : 1));
+        CursorX = !IsCursorGluedToEndOfLine ? Math.Clamp(CursorX, 0, maxX) : maxX;
     }
 
     private void Undo(HistoryEntry entry)
@@ -416,10 +416,10 @@
         RecomputeCursor();
     }
 
-    private void Redo(HistoryEntry entry)
+    private void Redo(HistoryEntry entry) { ApplyHistoryEntry(entry, entry.StartX, entry.StartY); }
+
+    private void ApplyHistoryEntry(HistoryEntry entry, int x0, int y0)
     {
-        var x0 = entry.StartX;
-        var y0 = entry.StartY;
         var textToRemove = entry.RemovedTextToTheLeft + entry.RemovedTextToTheRight;
         if (textToRemove != "")
         {
@@ -449,5 +449,12 @@
                 }
             }
         }
+    }
+
+    private void LineEnd()
+    {
+        if (Lines[CursorY] == "") { CursorX = 0; }
+        else if (_mode == Mode.Normal) { CursorX = Lines[CursorY].Length - 1; }
+        else if (_mode == Mode.Insert) { CursorX = Lines[CursorY].Length; }
     }
 }
