@@ -44,6 +44,7 @@
     private int _historyIndex;
     private HistoryEntry _currentHistoryEntry = new();
     private bool _gCommand = false;
+    private Command _lastInsertionCommand = new() { Type = CommandType.Noop };
 
     // rendering state
     public Font _font;
@@ -157,12 +158,15 @@
                     break;
                 case (Mode.Normal, KeyboardKey.I, VimInputModifier.None):
                     command = new() { Type = CommandType.Insert };
+                    _lastInsertionCommand = command;
                     break;
                 case (Mode.Normal, KeyboardKey.A, VimInputModifier.None):
                     command = new() { Type = CommandType.Append };
+                    _lastInsertionCommand = command;
                     break;
                 case (Mode.Normal, KeyboardKey.A, VimInputModifier.Shift):
                     command = new() { Type = CommandType.AppendToEndOfLine };
+                    _lastInsertionCommand = command;
                     break;
                 case (Mode.Normal, KeyboardKey.G, VimInputModifier.None):
                     _gCommand = true;
@@ -175,6 +179,14 @@
                     break;
                 case (Mode.Normal, KeyboardKey.R, VimInputModifier.Control):
                     command = new() { Type = CommandType.Redo };
+                    break;
+                case (Mode.Normal, KeyboardKey.Period, VimInputModifier.None):
+                    if (_history.Count != 0)
+                    {
+                        Execute(_lastInsertionCommand);
+                        ApplyHistoryEntry(_history.Last(), CursorX, CursorY);
+                        Execute(new() { Type = CommandType.ExitInsertMode });
+                    }
                     break;
                 case (Mode.Insert, KeyboardKey.Escape, VimInputModifier.None):
                     command = new() { Type = CommandType.ExitInsertMode };
@@ -195,6 +207,7 @@
 
     public enum CommandType
     {
+        Noop,
         Text,
         Left,
         Down,
@@ -228,6 +241,7 @@
         var commitHistoryEntry = true;
         switch (command.Type)
         {
+            case CommandType.Noop: break;
             case CommandType.Text:
                 Lines[CursorY] = Lines[CursorY].Insert(CursorX, command.Text);
                 CursorX += command.Text.Length;
