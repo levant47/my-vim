@@ -85,10 +85,10 @@
             }
             Console.WriteLine();
 
-            var longestTestName = tests.Max(test => test.Name.Length);
+            var longestTestNameLength = Math.Min(40, tests.Max(test => test.Name.Length));
             foreach (var test in tests)
             {
-                Console.WriteLine($"{(test.Name + ":").PadRight(longestTestName + 1)} {(test.Success ? "✓" : "×")}");
+                Console.WriteLine($"{(test.Name + ":").PadRight(longestTestNameLength + 1)} {(test.Success ? "✓" : "×")}");
             }
             Console.WriteLine($"Failed: {tests.Count(test => !test.Success)}, passed: {tests.Count(test => test.Success)}, total: {tests.Count}");
         }
@@ -149,6 +149,8 @@
         new("abc", "i backspace", "abc"),
         new("abc", "l i backspace", "bc"),
         new("abc\ndef", "j i backspace", "abcdef"),
+        new("abc\ndef", "A ' hello' escape j 0 period u u", "abc\ndef"),
+        new("abc\ndef", "A ' hello' escape j 0 period u u ^r ^r", "abc hello\ndef hello"),
     ];
 
     private static void Assert(object actual, object expected)

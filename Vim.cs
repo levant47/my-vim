@@ -14,6 +14,15 @@
         public string RemovedTextToTheLeft = "";
         public string RemovedTextToTheRight = "";
 
+        public HistoryEntry Copy() => new()
+        {
+            StartX = StartX,
+            StartY = StartY,
+            AddedText = AddedText,
+            RemovedTextToTheLeft = RemovedTextToTheLeft,
+            RemovedTextToTheRight = RemovedTextToTheRight,
+        };
+
         public void AddText(string text) { AddedText += text; }
 
         public void RemoveTextToTheLeft(char c, int x, int y)
@@ -185,6 +194,11 @@
                     {
                         Execute(_lastInsertionCommand);
                         ApplyHistoryEntry(_history.Last(), CursorX, CursorY);
+                        var newEntry = _history.Last().Copy();
+                        newEntry.StartX = CursorX;
+                        newEntry.StartY = CursorY;
+                        _history.Add(newEntry);
+                        _historyIndex++;
                         Execute(new() { Type = CommandType.ExitInsertMode });
                     }
                     break;
