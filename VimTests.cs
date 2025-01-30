@@ -80,6 +80,8 @@
         RunShortCursorTest(tests, "\nabc", "$ j", 2, 1);
         RunShortCursorTest(tests, "abc\n\ndef", "j $ j", 2, 2);
         RunShortCursorTest(tests, "a\nbcd", "$ l j", 2, 1);
+        RunShortCursorTest(tests, "abc\n\ndef", "l j j", 1, 2);
+        RunShortCursorTest(tests, "abc\n\ndefghi", "A right right right escape j j", 2, 2);
         RunShortCursorTest(tests, "abc", "a", 1, 0);
         RunShortCursorTest(tests, "abc", "$ a", 3, 0);
         RunShortCursorTest(tests, "abc", "A", 3, 0);
@@ -91,6 +93,7 @@
         RunShortCursorTest(tests, "ab", "a escape", 0, 0);
         RunShortCursorTest(tests, "var x = 42;", "f ';'", 10, 0);
         RunShortCursorTest(tests, "var x = 42;", "$ F 'r'", 2, 0);
+        RunShortCursorTest(tests, "var x = 42;", "w", 4, 0);
 
         if (tests.All(test => test.Success)) { Console.WriteLine("All tests passed!"); }
         else

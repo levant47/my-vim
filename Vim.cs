@@ -47,6 +47,7 @@
     public List<string> Lines;
     public int CursorX;
     public int CursorY;
+    public int GluedCursorX;
     public Mode _mode = Mode.Normal;
     public bool IsCursorGluedToEndOfLine;
     private List<HistoryEntry> _history = new();
@@ -134,7 +135,7 @@
                 Text = input.Text,
             });
         }
-        else if (_gCommand)
+        else if (_gCommand && input.Text == "")
         {
             switch (input.Key, input.Modifier)
             {
@@ -228,6 +229,9 @@
                 case (Mode.Normal, KeyboardKey.F, VimInputModifier.Shift):
                     _fReverseCommand = true;
                     break;
+                case (Mode.Normal, KeyboardKey.W, VimInputModifier.None):
+                    command = new() { Type = CommandType.GoToNextWord };
+                    break;
                 case (Mode.Insert, KeyboardKey.Escape, VimInputModifier.None):
                     command = new() { Type = CommandType.ExitInsertMode };
                     break;
@@ -265,6 +269,7 @@
         ExitInsertMode,
         NewLine,
         Backspace,
+        GoToNextWord
     }
 
     public class Command
@@ -288,17 +293,23 @@
                 _currentHistoryEntry.AddText(command.Text);
                 commitHistoryEntry = false;
                 break;
-            case CommandType.Left: CursorX--; break;
+            case CommandType.Left:
+                CursorX--;
+                GluedCursorX = Math.Max(0, CursorX);
+                break;
             case CommandType.Down:
                 CursorY++;
+                if (!IsCursorGluedToEndOfLine) { CursorX = GluedCursorX; }
                 unsetCursorGlue = false;
                 break;
             case CommandType.Up:
                 CursorY--;
+                if (!IsCursorGluedToEndOfLine) { CursorX = GluedCursorX; }
                 unsetCursorGlue = false;
                 break;
             case CommandType.Right:
                 CursorX++;
+                GluedCursorX = Math.Min(Lines[CursorY].Length - 1, CursorX);
                 unsetCursorGlue = false;
                 break;
             case CommandType.LineStart: CursorX = 0; break;
@@ -402,6 +413,10 @@
                     _currentHistoryEntry.RemoveTextToTheLeft(removedCharacter, CursorX, CursorY);
                 }
                 commitHistoryEntry = false;
+                break;
+            }
+            case CommandType.GoToNextWord:
+            {
                 break;
             }
             default: throw new();
