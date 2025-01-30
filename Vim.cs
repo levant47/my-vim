@@ -340,6 +340,7 @@
             }
             case CommandType.ExitInsertMode:
                 _mode = Mode.Normal;
+                CursorX--;
                 break;
             case CommandType.NewLine:
             {

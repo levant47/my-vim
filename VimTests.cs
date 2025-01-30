@@ -90,7 +90,6 @@
         RunShortCursorTest(tests, "hello", "$ i escape i escape", 2, 0);
         RunShortCursorTest(tests, "ab", "a escape", 0, 0);
 
-        Console.WriteLine();
         if (tests.All(test => test.Success)) { Console.WriteLine("All tests passed!"); }
         else
         {
