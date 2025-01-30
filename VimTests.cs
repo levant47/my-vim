@@ -61,6 +61,9 @@
         RunShortTest(tests, "abc\ndef", "j i backspace", "abcdef");
         RunShortTest(tests, "abc\ndef", "A ' hello' escape j 0 period u u", "abc\ndef");
         RunShortTest(tests, "abc\ndef", "A ' hello' escape j 0 period u u ^r ^r", "abc hello\ndef hello");
+        RunShortTest(tests, "var x = 42;", "f 'x' null D", "var ");
+        RunShortTest(tests, "var x = 42;", "$ D", "var x = 42");
+        RunShortTest(tests, "var x = 42;", "f 'x' D u", "var x = 42;");
 
         RunShortCursorTest(tests, "a\nb", "j", 0, 1);
         RunShortCursorTest(tests, "a\nb", "j j", 0, 1);

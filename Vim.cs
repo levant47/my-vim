@@ -38,6 +38,8 @@
 
         public void RemoveTextToTheRight(char c) { RemovedTextToTheRight += c; }
 
+        public void RemoveTextToTheRight(string s) { RemovedTextToTheRight += s; }
+
         public bool IsEmpty() => AddedText == "" && RemovedTextToTheLeft == "" && RemovedTextToTheRight == "";
     }
 
@@ -152,8 +154,8 @@
             {
                 CursorX = characterIndex;
             }
-            _fCommand = false;
         }
+        else if (_fCommand && input.Text == "") { _fCommand = false; } // quirks of our input system
         else if (_fReverseCommand && input.Text != "")
         {
             var characterIndex = Lines[CursorY].IndexOf(input.Text[0], 0, CursorX);
@@ -232,6 +234,9 @@
                 case (Mode.Normal, KeyboardKey.W, VimInputModifier.None):
                     command = new() { Type = CommandType.GoToNextWord };
                     break;
+                case (Mode.Normal, KeyboardKey.D, VimInputModifier.Shift):
+                    command = new() { Type = CommandType.DeleteRestOfLine };
+                    break;
                 case (Mode.Insert, KeyboardKey.Escape, VimInputModifier.None):
                     command = new() { Type = CommandType.ExitInsertMode };
                     break;
@@ -269,7 +274,8 @@
         ExitInsertMode,
         NewLine,
         Backspace,
-        GoToNextWord
+        GoToNextWord,
+        DeleteRestOfLine,
     }
 
     public class Command
@@ -416,6 +422,14 @@
             }
             case CommandType.GoToNextWord:
             {
+                break;
+            }
+            case CommandType.DeleteRestOfLine:
+            {
+                var removedText = Lines[CursorY][CursorX..];
+                Lines[CursorY] = Lines[CursorY][..CursorX];
+                _currentHistoryEntry.RemoveTextToTheRight(removedText);
+                commitHistoryEntry = true;
                 break;
             }
             default: throw new();
