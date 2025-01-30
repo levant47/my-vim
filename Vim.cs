@@ -231,8 +231,8 @@
                 case (Mode.Normal, KeyboardKey.F, VimInputModifier.Shift):
                     _fReverseCommand = true;
                     break;
-                case (Mode.Normal, KeyboardKey.W, VimInputModifier.None):
-                    command = new() { Type = CommandType.GoToNextWord };
+                case (Mode.Normal, KeyboardKey.W, VimInputModifier.Shift):
+                    command = new() { Type = CommandType.GoToNextWordIgnorePunctuation };
                     break;
                 case (Mode.Normal, KeyboardKey.D, VimInputModifier.Shift):
                     command = new() { Type = CommandType.DeleteRestOfLine };
@@ -274,7 +274,7 @@
         ExitInsertMode,
         NewLine,
         Backspace,
-        GoToNextWord,
+        GoToNextWordIgnorePunctuation,
         DeleteRestOfLine,
     }
 
@@ -420,8 +420,28 @@
                 commitHistoryEntry = false;
                 break;
             }
-            case CommandType.GoToNextWord:
+            case CommandType.GoToNextWordIgnorePunctuation:
             {
+                while (Lines[CursorY] != "" && !char.IsWhiteSpace(Lines[CursorY][CursorX]))
+                {
+                    if (CursorY == Lines.Count - 1 && (Lines[CursorY].Length == 0 || CursorX == Lines[CursorY].Length - 1)) { break; }
+                    if (Lines[CursorY].Length != 0 && CursorX != Lines[CursorY].Length - 1) { CursorX++; }
+                    else
+                    {
+                        CursorY++;
+                        CursorX = 0;
+                    }
+                }
+                while (Lines[CursorY] == "" || char.IsWhiteSpace(Lines[CursorY][CursorX]))
+                {
+                    if (CursorY == Lines.Count - 1 && (Lines[CursorY].Length == 0 || CursorX == Lines[CursorY].Length - 1)) { break; }
+                    if (Lines[CursorY].Length != 0 && CursorX != Lines[CursorY].Length - 1) { CursorX++; }
+                    else
+                    {
+                        CursorY++;
+                        CursorX = 0;
+                    }
+                }
                 break;
             }
             case CommandType.DeleteRestOfLine:

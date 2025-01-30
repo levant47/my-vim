@@ -98,7 +98,11 @@
         RunShortCursorTest(tests, "ab", "a escape", 0, 0);
         RunShortCursorTest(tests, "var x = 42;", "f ';'", 10, 0);
         RunShortCursorTest(tests, "var x = 42;", "$ F 'r'", 2, 0);
-        RunShortCursorTest(tests, "var x = 42;", "w", 4, 0);
+        RunShortCursorTest(tests, "Hello. Hi", "w", 5, 0);
+        RunShortCursorTest(tests, "Hello. Hi", "w w", 7, 0);
+        RunShortCursorTest(tests, "Hello. Hi", "w w w", 8, 0);
+        RunShortCursorTest(tests, "Hello. Hi", "W", 7, 0);
+        RunShortCursorTest(tests, "Hello. Hi", "W W", 8, 0);
 
         if (tests.All(test => test.Success)) { Console.WriteLine("All tests passed!"); }
         else
