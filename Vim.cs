@@ -53,6 +53,8 @@
     private int _historyIndex;
     private HistoryEntry _currentHistoryEntry = new();
     private bool _gCommand = false;
+    private bool _fCommand = false;
+    private bool _fReverseCommand = false;
     private Command _lastInsertionCommand = new() { Type = CommandType.Noop };
 
     // rendering state
@@ -142,6 +144,24 @@
             }
             _gCommand = false;
         }
+        else if (_fCommand && input.Text != "")
+        {
+            var characterIndex = Lines[CursorY].IndexOf(input.Text[0], CursorX);
+            if (characterIndex != -1)
+            {
+                CursorX = characterIndex;
+            }
+            _fCommand = false;
+        }
+        else if (_fReverseCommand && input.Text != "")
+        {
+            var characterIndex = Lines[CursorY].IndexOf(input.Text[0], 0, CursorX);
+            if (characterIndex != -1)
+            {
+                CursorX = characterIndex;
+            }
+            _fReverseCommand = false;
+        }
         else if (input.Key != KeyboardKey.Null)
         {
             Command? command = null;
@@ -201,6 +221,12 @@
                         _historyIndex++;
                         Execute(new() { Type = CommandType.ExitInsertMode });
                     }
+                    break;
+                case (Mode.Normal, KeyboardKey.F, VimInputModifier.None):
+                    _fCommand = true;
+                    break;
+                case (Mode.Normal, KeyboardKey.F, VimInputModifier.Shift):
+                    _fReverseCommand = true;
                     break;
                 case (Mode.Insert, KeyboardKey.Escape, VimInputModifier.None):
                     command = new() { Type = CommandType.ExitInsertMode };
