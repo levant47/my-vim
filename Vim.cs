@@ -283,6 +283,7 @@
     public void Execute(Command command)
     {
         var unsetCursorGlue = true;
+        var ignoreGluedCursorX = false;
         var commitHistoryEntry = true;
         switch (command.Type)
         {
@@ -295,21 +296,19 @@
                 break;
             case CommandType.Left:
                 CursorX--;
-                GluedCursorX = Math.Max(0, CursorX);
                 break;
             case CommandType.Down:
                 CursorY++;
-                if (!IsCursorGluedToEndOfLine) { CursorX = GluedCursorX; }
                 unsetCursorGlue = false;
+                ignoreGluedCursorX = true;
                 break;
             case CommandType.Up:
                 CursorY--;
-                if (!IsCursorGluedToEndOfLine) { CursorX = GluedCursorX; }
                 unsetCursorGlue = false;
+                ignoreGluedCursorX = true;
                 break;
             case CommandType.Right:
                 CursorX++;
-                GluedCursorX = Math.Min(Lines[CursorY].Length - 1, CursorX);
                 unsetCursorGlue = false;
                 break;
             case CommandType.LineStart: CursorX = 0; break;
@@ -422,6 +421,7 @@
             default: throw new();
         }
         if (unsetCursorGlue) { IsCursorGluedToEndOfLine = false; }
+        if (!ignoreGluedCursorX) { GluedCursorX = CursorX; }
         RecomputeCursor();
         if (commitHistoryEntry)
         {
@@ -441,7 +441,7 @@
     {
         CursorY = Math.Clamp(CursorY, 0, Lines.Count - 1);
         var maxX = Math.Max(0, Lines[CursorY].Length - (_mode == Mode.Insert ? 0 : 1));
-        CursorX = !IsCursorGluedToEndOfLine ? Math.Clamp(CursorX, 0, maxX) : maxX;
+        CursorX = !IsCursorGluedToEndOfLine ? Math.Clamp(GluedCursorX, 0, maxX) : maxX;
     }
 
     private void Undo(HistoryEntry entry)

@@ -89,6 +89,8 @@
         RunShortCursorTest(tests, "abc\ndef", "j i backspace", 3, 0);
         RunShortCursorTest(tests, "ab", "a enter", 0, 1);
         RunShortCursorTest(tests, "abc\ndef", "j $ g g", 0, 0);
+        RunShortCursorTest(tests, "abcdef\n\nghijkl", "l l 0 j j", 0, 2);
+        RunShortCursorTest(tests, "abc\ndefghi", "A 'abc' escape j", 5, 1);
         RunShortCursorTest(tests, "hello", "$ i escape i escape", 2, 0);
         RunShortCursorTest(tests, "ab", "a escape", 0, 0);
         RunShortCursorTest(tests, "var x = 42;", "f ';'", 10, 0);
