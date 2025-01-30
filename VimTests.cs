@@ -36,43 +36,59 @@
             }
         }
 
-        foreach (var shortTest in _shortTests)
-        {
-            var vim = new Vim(shortTest.InitialBuffer);
-            var testName = $"{{{shortTest.Commands}}}";
-            try
-            {
-                foreach (var input in ParseShortTestInput(shortTest.Commands))
-                {
-                    vim.Process(input);
-                }
-                tests.Add(new(
-                    testName,
-                    Success: vim.GetBuffer() == shortTest.ExpectedBuffer,
-                    $"Expected '{shortTest.ExpectedBuffer.Replace("\n", "\\n")}', got '{vim.GetBuffer().Replace("\n", "\\n")}'"
-                ));
-            }
-            catch (Exception exception) { tests.Add(new(testName, Success: false, exception.Message)); }
-        }
+        RunShortTest(tests, "", "i 'Hello, world!'", "Hello, world!");
+        RunShortTest(tests, "", "i 'hello' escape i 'hello'", "hellhelloo");
+        RunShortTest(tests, "", "i enter", "\n");
+        RunShortTest(tests, "ab", "right i enter", "a\nb");
+        RunShortTest(tests, "abc\ndef\nghi", "j d d u", "abc\ndef\nghi");
+        RunShortTest(tests, "abc\ndef\nghi", "j d d u ^r", "abc\ndef\nghi");
+        RunShortTest(tests, "abc\ndef\nghi", "j i delete delete delete escape u", "abc\ndef\nghi");
+        RunShortTest(tests, "abc\ndef\nghi", "j i delete delete delete escape u ^r", "abc\n\nghi");
+        RunShortTest(tests, "abc\ndef\nghi", "j i backspace backspace backspace escape u", "abc\ndef\nghi");
+        RunShortTest(tests, "abc\ndef\nghi", "j i backspace backspace backspace escape u ^r", "adef\nghi");
+        RunShortTest(tests, "abc\ndef\nghi", "j j A enter 'jkl' escape u", "abc\ndef\nghi");
+        RunShortTest(tests, "abc\ndef\nghi", "j j A enter 'jkl' escape u ^r", "abc\ndef\nghi\njkl");
+        RunShortTest(tests, "abc\n\nghi", "j a backspace backspace backspace backspace delete delete delete delete 'def' escape u", "abc\n\nghi");
+        RunShortTest(tests, "abc\n\nghi", "j a backspace backspace backspace backspace delete delete delete delete 'def' escape u ^r", "def");
+        RunShortTest(tests, "abc", "x u" ,"abc");
+        RunShortTest(tests, "abc", "x u ^r" ,"bc");
+        RunShortTest(tests, "abc", "x x u" ,"bc");
+        RunShortTest(tests, "abc", "x x u u" ,"abc");
+        RunShortTest(tests, "", "i 'hello' escape period", "hellhelloo");
+        RunShortTest(tests, "", "a 'hello' escape period", "hellohello");
+        RunShortTest(tests, "abc", "i backspace", "abc");
+        RunShortTest(tests, "abc", "l i backspace", "bc");
+        RunShortTest(tests, "abc\ndef", "j i backspace", "abcdef");
+        RunShortTest(tests, "abc\ndef", "A ' hello' escape j 0 period u u", "abc\ndef");
+        RunShortTest(tests, "abc\ndef", "A ' hello' escape j 0 period u u ^r ^r", "abc hello\ndef hello");
 
-        foreach (var shortTest in _shortCursorTests)
-        {
-            var vim = new Vim(shortTest.InitialBuffer);
-            var testName = $"{{{shortTest.Commands}}}";
-            try
-            {
-                foreach (var input in ParseShortTestInput(shortTest.Commands))
-                {
-                    vim.Process(input);
-                }
-                tests.Add(new(
-                    testName,
-                    Success: vim.CursorX == shortTest.ExpectedCursorX && vim.CursorY == shortTest.ExpectedCursorY,
-                    $"Expected X = {shortTest.ExpectedCursorX}, Y = {shortTest.ExpectedCursorY}, got X = {vim.CursorX}, Y = {vim.CursorY}"
-                ));
-            }
-            catch (Exception exception) { tests.Add(new(testName, Success: false, exception.Message)); }
-        }
+        RunShortCursorTest(tests, "a\nb", "j", 0, 1);
+        RunShortCursorTest(tests, "a\nb", "j j", 0, 1);
+        RunShortCursorTest(tests, "a\nb", "k", 0, 0);
+        RunShortCursorTest(tests, "a\nb", "j k", 0, 0);
+        RunShortCursorTest(tests, "a\nb\nc", "j j k", 0, 1);
+        RunShortCursorTest(tests, "ab", "h", 0, 0);
+        RunShortCursorTest(tests, "ab", "l h", 0, 0);
+        RunShortCursorTest(tests, "abc", "l l h", 1, 0);
+        RunShortCursorTest(tests, "ab", "l", 1, 0);
+        RunShortCursorTest(tests, "abc", "$ l", 2, 0);
+        RunShortCursorTest(tests, "abc", "l 0", 0, 0);
+        RunShortCursorTest(tests, "abc", "$ 0", 0, 0);
+        RunShortCursorTest(tests, "abc", "$", 2, 0);
+        RunShortCursorTest(tests, "ab\nc\ndef", "$ j", 0, 1);
+        RunShortCursorTest(tests, "ab\nc\ndef", "$ j j", 2, 2);
+        RunShortCursorTest(tests, "\nabc", "$ j", 2, 1);
+        RunShortCursorTest(tests, "abc\n\ndef", "j $ j", 2, 2);
+        RunShortCursorTest(tests, "a\nbcd", "$ l j", 2, 1);
+        RunShortCursorTest(tests, "abc", "a", 1, 0);
+        RunShortCursorTest(tests, "abc", "$ a", 3, 0);
+        RunShortCursorTest(tests, "abc", "A", 3, 0);
+        RunShortCursorTest(tests, "", "i 'hello' escape", 4, 0);
+        RunShortCursorTest(tests, "abc\ndef", "j i backspace", 3, 0);
+        RunShortCursorTest(tests, "ab", "a enter", 0, 1);
+        RunShortCursorTest(tests, "abc\ndef", "j $ g g", 0, 0);
+        RunShortCursorTest(tests, "hello", "$ i escape i escape", 2, 0);
+        RunShortCursorTest(tests, "ab", "a escape", 0, 0);
 
         Console.WriteLine();
         if (tests.All(test => test.Success)) { Console.WriteLine("All tests passed!"); }
@@ -94,64 +110,43 @@
         }
     }
 
-    private static ShortVimCursorTest[] _shortCursorTests =
-    [
-        new("a\nb", "j", 0, 1),
-        new("a\nb", "j j", 0, 1),
-        new("a\nb", "k", 0, 0),
-        new("a\nb", "j k", 0, 0),
-        new("a\nb\nc", "j j k", 0, 1),
-        new("ab", "h", 0, 0),
-        new("ab", "l h", 0, 0),
-        new("abc", "l l h", 1, 0),
-        new("ab", "l", 1, 0),
-        new("abc", "$ l", 2, 0),
-        new("abc", "l 0", 0, 0),
-        new("abc", "$ 0", 0, 0),
-        new("abc", "$", 2, 0),
-        new("ab\nc\ndef", "$ j", 0, 0),
-        new("ab\nc\ndef", "$ j j", 2, 0),
-        new("\nabc", "$ j", 2, 0),
-        new("abc\n\ndef", "j $ j", 2, 0),
-        new("a\nbcd", "$ l j", 2, 0),
-        new("abc", "a", 1, 0),
-        new("abc", "$ a", 3, 0),
-        new("abc", "A", 3, 0),
-        new("hello", "$ i escape i escape", 2, 0),
-        new("", "i 'hello' escape", 4, 0),
-        new("abc\ndef", "j i backspace", 3, 0),
-        new("ab", "a enter", 0, 1),
-        new("abc\ndef", "j $ g g", 0, 0),
-    ];
+    private static void RunShortTest(List<TestResult> tests, string initialBuffer, string commands, string expectedBuffer)
+    {
+        var vim = new Vim(initialBuffer);
+        var testName = commands;
+        try
+        {
+            foreach (var input in ParseShortTestInput(commands))
+            {
+                vim.Process(input);
+            }
+            tests.Add(new(
+                testName,
+                Success: vim.GetBuffer() == expectedBuffer,
+                $"Expected '{expectedBuffer.Replace("\n", "\\n")}', got '{vim.GetBuffer().Replace("\n", "\\n")}'"
+            ));
+        }
+        catch (Exception exception) { tests.Add(new(testName, Success: false, exception.Message)); }
+    }
 
-    private static ShortVimTest[] _shortTests =
-    [
-        new("", "i 'Hello, world!'", "Hello, world!"),
-        new("", "i 'hello' escape i 'hello'", "hellhelloo"),
-        new("", "i enter", "\n"),
-        new("ab", "right i enter", "a\nb"),
-        new("abc\ndef\nghi", "j d d u", "abc\ndef\nghi"),
-        new("abc\ndef\nghi", "j d d u ^r", "abc\ndef\nghi"),
-        new("abc\ndef\nghi", "j i delete delete delete escape u", "abc\ndef\nghi"),
-        new("abc\ndef\nghi", "j i delete delete delete escape u ^r", "abc\n\nghi"),
-        new("abc\ndef\nghi", "j i backspace backspace backspace escape u", "abc\ndef\nghi"),
-        new("abc\ndef\nghi", "j i backspace backspace backspace escape u ^r", "adef\nghi"),
-        new("abc\ndef\nghi", "j j A enter 'jkl' escape u", "abc\ndef\nghi"),
-        new("abc\ndef\nghi", "j j A enter 'jkl' escape u ^r", "abc\ndef\nghi\njkl"),
-        new("abc\n\nghi", "j a backspace backspace backspace backspace delete delete delete delete 'def' escape u", "abc\n\nghi"),
-        new("abc\n\nghi", "j a backspace backspace backspace backspace delete delete delete delete 'def' escape u ^r", "def"),
-        new("abc", "x u" ,"abc"),
-        new("abc", "x u ^r" ,"bc"),
-        new("abc", "x x u" ,"bc"),
-        new("abc", "x x u u" ,"abc"),
-        new("", "i 'hello' escape period", "hellhelloo"),
-        new("", "a 'hello' escape period", "hellohello"),
-        new("abc", "i backspace", "abc"),
-        new("abc", "l i backspace", "bc"),
-        new("abc\ndef", "j i backspace", "abcdef"),
-        new("abc\ndef", "A ' hello' escape j 0 period u u", "abc\ndef"),
-        new("abc\ndef", "A ' hello' escape j 0 period u u ^r ^r", "abc hello\ndef hello"),
-    ];
+    private static void RunShortCursorTest(List<TestResult> tests, string initialBuffer, string commands, int expectedCursorX, int expectedCursorY)
+    {
+        var vim = new Vim(initialBuffer);
+        var testName = commands;
+        try
+        {
+            foreach (var input in ParseShortTestInput(commands))
+            {
+                vim.Process(input);
+            }
+            tests.Add(new(
+                testName,
+                Success: vim.CursorX == expectedCursorX && vim.CursorY == expectedCursorY,
+                $"Expected X = {expectedCursorX}, Y = {expectedCursorY}, got X = {vim.CursorX}, Y = {vim.CursorY}"
+            ));
+        }
+        catch (Exception exception) { tests.Add(new(testName, Success: false, exception.Message)); }
+    }
 
     private static void Assert(object actual, object expected)
     {
