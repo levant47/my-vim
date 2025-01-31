@@ -101,12 +101,25 @@
         RunShortCursorTest(tests, "Hello. Hi", "w", 5, 0);
         RunShortCursorTest(tests, "Hello. Hi", "w w", 7, 0);
         RunShortCursorTest(tests, "Hello. Hi", "w w w", 8, 0);
+        RunShortCursorTest(tests, "\nabc", "w", 0, 1);
         RunShortCursorTest(tests, "Hello. Hi", "W", 7, 0);
         RunShortCursorTest(tests, "Hello. Hi", "W W", 8, 0);
+        RunShortCursorTest(tests, "abc\ndef", "W", 0, 1);
+        RunShortCursorTest(tests, "abc\n\ndef", "W", 0, 2);
+        RunShortCursorTest(tests, "abc\n\n\ndef", "W", 0, 3);
+        RunShortCursorTest(tests, "abc\n    def", "W", 4, 1);
+        RunShortCursorTest(tests, "abc\n\n    def", "W", 4, 2);
 
         if (tests.All(test => test.Success)) { Console.WriteLine("All tests passed!"); }
         else
         {
+            var longestTestNameLength = Math.Min(40, tests.Max(test => test.Name.Length));
+            foreach (var test in tests)
+            {
+                Console.WriteLine($"{(test.Name + ":").PadRight(longestTestNameLength + 1)} {(test.Success ? "✓" : "×")}");
+            }
+            Console.WriteLine();
+
             foreach (var test in tests)
             {
                 if (test.Success) { continue; }
@@ -114,11 +127,6 @@
             }
             Console.WriteLine();
 
-            var longestTestNameLength = Math.Min(40, tests.Max(test => test.Name.Length));
-            foreach (var test in tests)
-            {
-                Console.WriteLine($"{(test.Name + ":").PadRight(longestTestNameLength + 1)} {(test.Success ? "✓" : "×")}");
-            }
             Console.WriteLine($"Failed: {tests.Count(test => !test.Success)}, passed: {tests.Count(test => test.Success)}, total: {tests.Count}");
         }
     }

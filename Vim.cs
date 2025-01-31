@@ -231,6 +231,9 @@
                 case (Mode.Normal, KeyboardKey.F, VimInputModifier.Shift):
                     _fReverseCommand = true;
                     break;
+                case (Mode.Normal, KeyboardKey.W, VimInputModifier.None):
+                    command = new() { Type = CommandType.GoToNextWord };
+                    break;
                 case (Mode.Normal, KeyboardKey.W, VimInputModifier.Shift):
                     command = new() { Type = CommandType.GoToNextWordIgnorePunctuation };
                     break;
@@ -274,6 +277,7 @@
         ExitInsertMode,
         NewLine,
         Backspace,
+        GoToNextWord,
         GoToNextWordIgnorePunctuation,
         DeleteRestOfLine,
     }
@@ -420,27 +424,57 @@
                 commitHistoryEntry = false;
                 break;
             }
-            case CommandType.GoToNextWordIgnorePunctuation:
+            case CommandType.GoToNextWord:
             {
-                while (Lines[CursorY] != "" && !char.IsWhiteSpace(Lines[CursorY][CursorX]))
+                var newLineEncountered = false;
+                var previousCharacterType = Lines[CursorY].Length != 0 ? GetCharacterType(Lines[CursorY][CursorX]) : CharacterType.WhiteSpace;
+                var firstCharacter = true;
+                foreach (var c in IterateLines(CursorX, CursorY))
                 {
-                    if (CursorY == Lines.Count - 1 && (Lines[CursorY].Length == 0 || CursorX == Lines[CursorY].Length - 1)) { break; }
-                    if (Lines[CursorY].Length != 0 && CursorX != Lines[CursorY].Length - 1) { CursorX++; }
+                    if (c == '\n')
+                    {
+                        if (newLineEncountered) { break; }
+                        newLineEncountered = true;
+                        if (firstCharacter) { AdvanceCursorToNextCharacter(); }
+                    }
                     else
                     {
-                        CursorY++;
-                        CursorX = 0;
+                        if (GetCharacterType(c) != previousCharacterType) { break; }
+                        AdvanceCursorToNextCharacter();
+                    }
+                    firstCharacter = false;
+                }
+                foreach (var c in IterateLines(CursorX, CursorY))
+                {
+                    if (c == '\n')
+                    {
+                        if (newLineEncountered) { break; }
+                        newLineEncountered = true;
+                    }
+                    else
+                    {
+                        if (GetCharacterType(c) != CharacterType.WhiteSpace) { break; }
+                        AdvanceCursorToNextCharacter();
                     }
                 }
-                while (Lines[CursorY] == "" || char.IsWhiteSpace(Lines[CursorY][CursorX]))
+                break;
+            }
+            case CommandType.GoToNextWordIgnorePunctuation:
+            {
+                var whiteSpaceEncountered = false;
+                foreach (var c in IterateLines(CursorX, CursorY))
                 {
-                    if (CursorY == Lines.Count - 1 && (Lines[CursorY].Length == 0 || CursorX == Lines[CursorY].Length - 1)) { break; }
-                    if (Lines[CursorY].Length != 0 && CursorX != Lines[CursorY].Length - 1) { CursorX++; }
-                    else
+                    if (!whiteSpaceEncountered)
                     {
-                        CursorY++;
-                        CursorX = 0;
+                        if (GetCharacterType(c) == CharacterType.WhiteSpace)
+                        { whiteSpaceEncountered = true; }
+                        if (c != '\n') { AdvanceCursorToNextCharacter(); }
                     }
+                    else if (GetCharacterType(c) == CharacterType.WhiteSpace)
+                    {
+                        AdvanceCursorToNextCharacter();
+                    }
+                    else { break; }
                 }
                 break;
             }
@@ -560,5 +594,47 @@
         if (Lines[CursorY] == "") { CursorX = 0; }
         else if (_mode == Mode.Normal) { CursorX = Lines[CursorY].Length - 1; }
         else if (_mode == Mode.Insert) { CursorX = Lines[CursorY].Length; }
+    }
+
+    public enum CharacterType
+    {
+        WhiteSpace,
+        AlphaNumericOrUnderscore,
+        Other,
+    }
+
+    public static CharacterType GetCharacterType(char c)
+    {
+        if (char.IsWhiteSpace(c)) { return CharacterType.WhiteSpace; }
+        if (char.IsAsciiLetter(c) || char.IsAsciiDigit(c) || c == '_') { return CharacterType.AlphaNumericOrUnderscore; }
+        return CharacterType.Other;
+    }
+
+    private IEnumerable<char> IterateLines(int x, int y) // including newlines which aren't technically there
+    {
+        while (y < Lines.Count)
+        {
+            while (x < Lines[y].Length)
+            {
+                yield return Lines[y][x];
+                x++;
+            }
+            yield return '\n';
+            y++;
+            x = 0;
+        }
+    }
+
+    private void AdvanceCursorToNextCharacter()
+    {
+        if (Lines[CursorY].Length == 0 || CursorX == Lines[CursorY].Length - 1)
+        {
+            if (CursorY != Lines.Count - 1)
+            {
+                CursorY++;
+                CursorX = 0;
+            }
+        }
+        else { CursorX++; }
     }
 }
